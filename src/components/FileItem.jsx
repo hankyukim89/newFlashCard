@@ -10,7 +10,6 @@ const FileItem = ({
     onDragStart,
     onDrop,
     isRenaming,
-    isRenaming,
     onRename,
     viewMode
 }) => {
