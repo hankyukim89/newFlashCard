@@ -1,21 +1,38 @@
 import React, { useRef } from 'react';
+import { storage } from '../firebase';
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { useAuth } from '../contexts/AuthContext';
 
 const CardPreview = ({ card, index, onUpdate, onAddImage, onDelete, images }) => {
     const fileInputRef = useRef(null);
     const currentImageSide = useRef(null);
+    const { user } = useAuth();
+    const [uploading, setUploading] = React.useState(false);
 
     const handleImageClick = (side) => {
         currentImageSide.current = side;
         fileInputRef.current?.click();
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
-        if (file && currentImageSide.current) {
-            const url = URL.createObjectURL(file);
-            onAddImage(index, currentImageSide.current, url);
-            // Reset
-            e.target.value = '';
+        if (file && currentImageSide.current && user) {
+            setUploading(true);
+            try {
+                // Create a unique path: users/{userId}/images/{timestamp}_{filename}
+                const storageRef = ref(storage, `users/${user.id}/images/${Date.now()}_${file.name}`);
+
+                await uploadBytes(storageRef, file);
+                const url = await getDownloadURL(storageRef);
+
+                onAddImage(index, currentImageSide.current, url);
+            } catch (error) {
+                console.error("Upload failed", error);
+                alert("Image upload failed");
+            } finally {
+                setUploading(false);
+                e.target.value = ''; // Reset
+            }
         }
     };
 
@@ -28,11 +45,9 @@ const CardPreview = ({ card, index, onUpdate, onAddImage, onDelete, images }) =>
                 <span>{index + 1}</span>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                     <button className="delete-btn" onClick={() => onDelete(index)} title="Delete card">
-                        Stop
-                    </button>
-                    <button className="delete-btn" onClick={() => onDelete(index)} title="Delete card">
                         🗑️
                     </button>
+                    {uploading && <span style={{ fontSize: '0.8rem', color: '#666' }}>Uploading...</span>}
                 </div>
             </div>
 
