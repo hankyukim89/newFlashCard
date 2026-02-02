@@ -36,8 +36,9 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
         try {
             await loginWithGoogle();
             onClose();
-        } catch {
-            setError("Google login failed");
+        } catch (error) {
+            console.error("Google Login Error:", error);
+            setError(error.message || "Google login failed");
         } finally {
             setIsLoading(false);
         }
