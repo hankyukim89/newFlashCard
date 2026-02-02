@@ -10,12 +10,16 @@ const Study = ({ cards, images, languages }) => {
     const [isComplete, setIsComplete] = useState(false);
 
     // Initialize with all cards
+    // Initialize with all cards
     useEffect(() => {
         // Only map if not already set or restarting
-        if (studyCards.length === 0 && cards.length > 0) {
-            setStudyCards(cards.map(c => c.id || c.index)); // Store IDs/Indices
+        if (cards.length > 0) {
+            setStudyCards(prev => {
+                if (prev.length === 0) return cards.map(c => c.id || c.index);
+                return prev;
+            });
         }
-    }, [cards, studyCards.length]);
+    }, [cards]);
 
     const handleNext = useCallback(() => {
         setIsFlipped(false);

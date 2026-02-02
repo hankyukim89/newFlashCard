@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 
 export const useFlashcards = () => {
     const [inputText, setInputText] = useState('Word 1, Definition 1\nWord 2, Definition 2');
@@ -122,7 +121,6 @@ export const useFlashcards = () => {
         setSeparators,
         updateCard,
         images,
-        addImage,
         addImage,
         removeCard,
         languages,

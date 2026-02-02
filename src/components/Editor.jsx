@@ -11,8 +11,6 @@ const Editor = ({
     updateCard,
     images,
     addImage,
-    removeCard
-    addImage,
     removeCard,
     languages,
     setLanguages

@@ -24,7 +24,7 @@ const Flashcard = ({ card, isFlipped, onClick, images, languages }) => {
     return (
         <div className="flashcard-scene" onClick={onClick}>
             <div className={`flashcard ${isFlipped ? 'flipped' : ''}`}>
-                <div className="card-face front" style={{ position: 'relative' }}>
+                <div className="card-face front">
                     <button
                         onClick={(e) => speak(e, card.term, languages?.term)}
                         className="speaker-btn"
@@ -44,7 +44,7 @@ const Flashcard = ({ card, isFlipped, onClick, images, languages }) => {
                     {termImage && <img src={termImage} alt="Term" className="card-image" />}
                     <div>{card.term}</div>
                 </div>
-                <div className="card-face back" style={{ position: 'relative' }}>
+                <div className="card-face back">
                     <button
                         onClick={(e) => speak(e, card.definition, languages?.definition)}
                         className="speaker-btn"
