@@ -39,6 +39,12 @@ function AuthenticatedApp() {
 
   const handleNavigateFile = (item) => {
     if (item.type === 'set') {
+      navigate(`/study/${item.id}`);
+    }
+  };
+
+  const handleEditFile = (item) => {
+    if (item.type === 'set') {
       navigate(`/edit/${item.id}`);
     }
   };
@@ -165,6 +171,7 @@ function AuthenticatedApp() {
             <Dashboard
               {...fs}
               onNavigateFile={handleNavigateFile}
+              onEditFile={handleEditFile}
               onCopy={(ids, action) => fs.copyToClipboard(ids, action)}
               onPaste={fs.pasteFromClipboard}
               onNavigateNewSet={navigateToNewSet}

@@ -12,6 +12,7 @@ const Dashboard = ({
     onCopy,
     onPaste,
     onNavigateFile,
+    onEditFile,
     updatePermissions,
     onNavigateNewSet
 }) => {
@@ -57,6 +58,9 @@ const Dashboard = ({
         const options = [];
         if (item) {
             options.push({ label: 'Open', action: () => onNavigateFile(item) });
+            if (item.type === 'set' && onEditFile) {
+                options.push({ label: 'Edit', action: () => onEditFile(item) });
+            }
             options.push({
                 label: 'Rename', action: () => setRenamingId(item.id)
             });
