@@ -178,12 +178,24 @@ const Dashboard = ({
         if (e.target === containerRef.current || e.target.classList.contains('file-content-area') || e.target.classList.contains('dashboard-container')) {
             // Start selection box
             setIsSelecting(true);
+            const rect = containerRef.current.getBoundingClientRect();
+
+            // Calculate relative coords for rendering
+            const relX = e.clientX - rect.left + containerRef.current.scrollLeft;
+            const relY = e.clientY - rect.top + containerRef.current.scrollTop;
+
             setSelectionBox({
                 startX: e.clientX,
                 startY: e.clientY,
                 currentX: e.clientX,
-                currentY: e.clientY
+                currentY: e.clientY,
+                // Relative coords for UI
+                startRelX: relX,
+                startRelY: relY,
+                currRelX: relX,
+                currRelY: relY
             });
+
             if (!e.shiftKey && !e.metaKey && !e.ctrlKey) {
                 setSelection(new Set());
                 lastSelectedIndexRef.current = null;
@@ -193,17 +205,23 @@ const Dashboard = ({
 
     const handleMouseMove = (e) => {
         if (isSelecting && selectionBox) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const relX = e.clientX - rect.left + containerRef.current.scrollLeft;
+            const relY = e.clientY - rect.top + containerRef.current.scrollTop;
+
             setSelectionBox(prev => ({
                 ...prev,
                 currentX: e.clientX,
-                currentY: e.clientY
+                currentY: e.clientY,
+                currRelX: relX,
+                currRelY: relY
             }));
         }
     };
 
     const handleMouseUp = (e) => {
         if (isSelecting && selectionBox) {
-            // Calculate Box
+            // Calculate Box in Viewport Coordinates for Intersection
             const boxRect = {
                 left: Math.min(selectionBox.startX, selectionBox.currentX),
                 top: Math.min(selectionBox.startY, selectionBox.currentY),
@@ -217,7 +235,7 @@ const Dashboard = ({
             itemNodes.forEach(node => {
                 const rect = node.getBoundingClientRect();
 
-                // Check intersection between SelectionBox and Item
+                // Check intersection (Viewport vs Viewport)
                 const intersects = !(
                     rect.right < boxRect.left ||
                     rect.left > boxRect.right ||
@@ -405,10 +423,10 @@ const Dashboard = ({
                     position: 'absolute',
                     border: '1px solid #007bff',
                     backgroundColor: 'rgba(0, 123, 255, 0.2)',
-                    left: Math.min(selectionBox.startX, selectionBox.currentX),
-                    top: Math.min(selectionBox.startY, selectionBox.currentY),
-                    width: Math.abs(selectionBox.currentX - selectionBox.startX),
-                    height: Math.abs(selectionBox.currentY - selectionBox.startY),
+                    left: Math.min(selectionBox.startRelX, selectionBox.currRelX),
+                    top: Math.min(selectionBox.startRelY, selectionBox.currRelY),
+                    width: Math.abs(selectionBox.currRelX - selectionBox.startRelX),
+                    height: Math.abs(selectionBox.currRelY - selectionBox.startRelY),
                     pointerEvents: 'none',
                     zIndex: 100
                 }} />

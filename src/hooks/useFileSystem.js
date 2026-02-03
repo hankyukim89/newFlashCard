@@ -1,7 +1,7 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../firebase';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
 
 const DEFAULT_ITEMS = {
     'root': { id: 'root', type: 'folder', name: 'Main', parentId: null, permissions: 'private' }
@@ -25,6 +25,8 @@ export const useFileSystem = (userId) => {
     });
     const [clipboard, setClipboard] = useState(null);
 
+    const isRemoteUpdate = useRef(false);
+
     // Load from Firestore (Sync)
     useEffect(() => {
         if (!userId) return;
@@ -34,21 +36,16 @@ export const useFileSystem = (userId) => {
                 const data = docSnap.data().fileSystem;
                 if (data) {
                     // Update state AND local storage to keep them in sync
+                    isRemoteUpdate.current = true;
                     setItems(data);
                     localStorage.setItem(getStorageKey(userId), JSON.stringify(data));
                 }
             } else {
-                // Check if we have local data to "upload" to new user profile?
-                // Or just init default.
-                // If local has data but remote doesn't, maybe we should save local to remote?
-                // For now, let's respect remote default > local if remote is strictly empty?
-                // Actually, if doc doesn't exist, we init it.
                 setDoc(doc(db, "users", userId), { fileSystem: DEFAULT_ITEMS }, { merge: true });
                 setItems(DEFAULT_ITEMS);
             }
         }, (error) => {
             console.error("Firestore sync error:", error);
-            // Fallback to local storage is implicit since we initialized from it
         });
 
         return () => unsub();
@@ -65,14 +62,25 @@ export const useFileSystem = (userId) => {
 
         // 2. Sync to Firestore if logged in
         if (userId && items !== DEFAULT_ITEMS) {
+            // Prevent echoing back updates that just came from Firestore
+            if (isRemoteUpdate.current) {
+                isRemoteUpdate.current = false;
+                return;
+            }
+
             const save = async () => {
                 try {
-                    await setDoc(doc(db, "users", userId), { fileSystem: items }, { merge: true });
+                    // Use updateDoc to replace the entire 'fileSystem' map.
+                    // setDoc with { merge: true } would merge keys, preventing deletion of removed keys.
+                    await updateDoc(doc(db, "users", userId), { fileSystem: items });
                 } catch (e) {
-                    console.error("Error saving to Firestore: ", e);
+                    if (e.code === 'not-found') {
+                        await setDoc(doc(db, "users", userId), { fileSystem: items });
+                    } else {
+                        console.error("Error saving to Firestore: ", e);
+                    }
                 }
             };
-            // Debounce could be added here, but for now simple is better.
             save();
         }
     }, [items, userId]);
