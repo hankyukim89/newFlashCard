@@ -8,45 +8,71 @@ const DEFAULT_ITEMS = {
 };
 
 export const useFileSystem = (userId) => {
-    const [items, setItems] = useState(DEFAULT_ITEMS);
+    const getStorageKey = (uid) => `flashcards_filesystem_${uid || 'local'}`;
+
+    // Initialize state from local storage to avoid flashing empty
+    const [items, setItems] = useState(() => {
+        const key = getStorageKey(userId);
+        const local = localStorage.getItem(key);
+        if (local) {
+            try {
+                return JSON.parse(local);
+            } catch (e) {
+                console.error("Parse error", e);
+            }
+        }
+        return DEFAULT_ITEMS;
+    });
     const [clipboard, setClipboard] = useState(null);
 
-    // Load from Firestore
+    // Load from Firestore (Sync)
     useEffect(() => {
-        if (!userId) {
-            // eslint-disable-next-line
-            setItems(DEFAULT_ITEMS);
-            return;
-        }
+        if (!userId) return;
 
         const unsub = onSnapshot(doc(db, "users", userId), (docSnap) => {
             if (docSnap.exists()) {
-                setItems(docSnap.data().fileSystem || DEFAULT_ITEMS);
+                const data = docSnap.data().fileSystem;
+                if (data) {
+                    // Update state AND local storage to keep them in sync
+                    setItems(data);
+                    localStorage.setItem(getStorageKey(userId), JSON.stringify(data));
+                }
             } else {
-                // Initialize if new user
+                // Check if we have local data to "upload" to new user profile?
+                // Or just init default.
+                // If local has data but remote doesn't, maybe we should save local to remote?
+                // For now, let's respect remote default > local if remote is strictly empty?
+                // Actually, if doc doesn't exist, we init it.
                 setDoc(doc(db, "users", userId), { fileSystem: DEFAULT_ITEMS }, { merge: true });
                 setItems(DEFAULT_ITEMS);
             }
+        }, (error) => {
+            console.error("Firestore sync error:", error);
+            // Fallback to local storage is implicit since we initialized from it
         });
 
         return () => unsub();
     }, [userId]);
 
-    // Save to Firestore
+    // Save to LocalStorage AND Firestore
     useEffect(() => {
-        if (!userId) return;
+        const key = getStorageKey(userId);
 
-        // Debounce or save on change. For now, direct save is fine for small data, 
-        // but in prod we'd want to be careful.
-        // We will just save when items change. 
+        // 1. Always save to LocalStorage (Fast, Offline-proof)
         if (items !== DEFAULT_ITEMS) {
+            localStorage.setItem(key, JSON.stringify(items));
+        }
+
+        // 2. Sync to Firestore if logged in
+        if (userId && items !== DEFAULT_ITEMS) {
             const save = async () => {
                 try {
                     await setDoc(doc(db, "users", userId), { fileSystem: items }, { merge: true });
                 } catch (e) {
-                    console.error("Error saving filesystem: ", e);
+                    console.error("Error saving to Firestore: ", e);
                 }
             };
+            // Debounce could be added here, but for now simple is better.
             save();
         }
     }, [items, userId]);

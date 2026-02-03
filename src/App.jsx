@@ -1,88 +1,60 @@
 import { useState } from 'react'
+import { Routes, Route, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useFileSystem } from './hooks/useFileSystem'
-import { useFlashcards } from './hooks/useFlashcards'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import Editor from './components/Editor'
-import Study from './components/Study'
 import Dashboard from './components/Dashboard'
 import LandingPage from './components/LandingPage'
+import EditorPage from './components/EditorPage'
+import StudyPage from './components/StudyPage'
 import './App.css'
 
 function AuthenticatedApp() {
   const { user, logout } = useAuth();
-
-  // Routing State
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'editor', 'study'
-  const [activeSetId, setActiveSetId] = useState(null);
-  const [history, setHistory] = useState([]); // Stack of { view, activeSetId }
-
-  // File System - Pass user ID for isolation
   const fs = useFileSystem(user?.id);
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  // Flashcard Logic
-  const flashcardState = useFlashcards();
+  const [isRenamingTitle, setIsRenamingTitle] = useState(false);
+  const [titleInput, setTitleInput] = useState('');
+
+  const handleTitleSubmit = () => {
+    setIsRenamingTitle(false);
+    if (!titleInput.trim()) return;
+
+    if (location.pathname.startsWith('/edit/') || location.pathname.startsWith('/study/')) {
+      const id = location.pathname.split('/')[2];
+      fs.renameItem(id, titleInput);
+    }
+  };
+
+  // Helper to get active set name for header
+  const getActiveSetName = () => {
+    const path = location.pathname;
+    if (path.startsWith('/edit/') || path.startsWith('/study/')) {
+      const id = path.split('/')[2];
+      return fs.items[id]?.name || 'Untitled Set';
+    }
+    return '';
+  };
 
   const handleNavigateFile = (item) => {
     if (item.type === 'set') {
-      setActiveSetId(item.id);
-      if (item.content) {
-        flashcardState.setInputText(item.content.text || '');
-        if (item.content.languages) {
-          flashcardState.setLanguages(item.content.languages);
-        }
-      } else {
-        flashcardState.setInputText('');
-        flashcardState.setLanguages({ term: 'en-US', definition: 'en-US' });
-      }
-      setHistory(prev => [...prev, { view, activeSetId }]);
-      setView('editor');
+      navigate(`/edit/${item.id}`);
     }
   };
 
   const navigateToNewSet = (id) => {
-    setActiveSetId(id);
-    flashcardState.setInputText('');
-    flashcardState.setLanguages({ term: 'en-US', definition: 'en-US' });
-    setHistory(prev => [...prev, { view, activeSetId }]);
-    setView('editor');
-  };
-
-  const handleSaveSet = () => {
-    if (activeSetId) {
-      fs.updateSetContent(activeSetId, {
-        text: flashcardState.inputText,
-        languages: flashcardState.languages,
-      });
-    }
-  };
-
-  const goBack = () => {
-    handleSaveSet();
-    if (history.length > 0) {
-      const prev = history[history.length - 1];
-      setHistory(history.slice(0, -1));
-      setView(prev.view);
-      setActiveSetId(prev.activeSetId);
-    } else {
-      setView('dashboard');
-      setActiveSetId(null);
-    }
-  };
-
-  const handleCreateAndExit = () => {
-    handleSaveSet();
-    goBack();
-  };
-
-  const startStudy = () => {
-    handleSaveSet();
-    setView('study');
+    navigate(`/edit/${id}`);
   };
 
   // If we are not logged in, show Landing Page
   if (!user) {
     return <LandingPage />;
   }
+
+  const isDashboard = location.pathname === '/';
+  const isEditor = location.pathname.startsWith('/edit/');
+  const currentSetId = isEditor ? location.pathname.split('/')[2] : null;
 
   return (
     <div className="app-container">
@@ -95,31 +67,64 @@ function AuthenticatedApp() {
         alignItems: 'center'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {view !== 'dashboard' && (
-            <button onClick={goBack} className="nav-btn" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center' }}>
+          {!isDashboard && (
+            <button onClick={() => navigate('/')} className="nav-btn" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center' }}>
               ← Back
             </button>
           )}
-          <h1 style={{ fontSize: '1.25rem' }}>
-            {view === 'dashboard' ? 'My Flashcards' : (
-              fs.items[activeSetId]?.name || 'Untitled Set'
-            )}
-          </h1>
+          {isRenamingTitle ? (
+            <input
+              autoFocus
+              className="nav-title-input"
+              value={titleInput}
+              onChange={(e) => setTitleInput(e.target.value)}
+              onBlur={handleTitleSubmit}
+              onKeyDown={(e) => e.key === 'Enter' && handleTitleSubmit()}
+              style={{
+                fontSize: '1.25rem',
+                fontWeight: '600',
+                fontFamily: 'inherit',
+                border: '1px solid black',
+                borderRadius: '4px',
+                padding: '0 6px',
+                lineHeight: '1.5',
+                width: 'auto',
+                minWidth: '200px',
+                margin: '-1px',
+                color: 'inherit',
+                background: 'white'
+              }}
+            />
+          ) : (
+            <h1
+              className={!isDashboard ? "editable-document-title" : ""}
+              title={!isDashboard ? "Rename" : ""}
+              style={{ fontSize: '1.25rem' }}
+              onClick={() => {
+                if (!isDashboard) {
+                  setTitleInput(getActiveSetName());
+                  setIsRenamingTitle(true);
+                }
+              }}
+            >
+              {isDashboard ? 'My Flashcards' : getActiveSetName()}
+            </h1>
+          )}
         </div>
 
         <div style={{ gap: '1rem', display: 'flex', alignItems: 'center' }}>
-          {view === 'editor' && (
+          {isEditor && (
             <>
               <button
                 className="action-btn"
-                onClick={handleCreateAndExit}
+                onClick={() => navigate('/')} // "Create" button effectively just saves (via unmount) and exits
                 style={{ padding: '0.5rem 1rem' }}
               >
                 Create
               </button>
               <button
                 className="action-btn"
-                onClick={startStudy}
+                onClick={() => navigate(`/study/${currentSetId}`)}
                 style={{ padding: '0.5rem 1rem', background: 'var(--color-primary)', color: 'white', borderColor: 'var(--color-primary)' }}
               >
                 Create and Practice
@@ -155,21 +160,20 @@ function AuthenticatedApp() {
         </div>
       </header>
       <main style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', height: 'calc(100vh - 80px)' }}>
-        {view === 'dashboard' && (
-          <Dashboard
-            {...fs}
-            onNavigateFile={handleNavigateFile}
-            onCopy={(ids, action) => fs.copyToClipboard(ids, action)}
-            onPaste={fs.pasteFromClipboard}
-            onNavigateNewSet={navigateToNewSet}
-          />
-        )}
-        {view === 'editor' && (
-          <Editor {...flashcardState} />
-        )}
-        {view === 'study' && (
-          <Study cards={flashcardState.cards} images={flashcardState.images} languages={flashcardState.languages} />
-        )}
+        <Routes>
+          <Route path="/" element={
+            <Dashboard
+              {...fs}
+              onNavigateFile={handleNavigateFile}
+              onCopy={(ids, action) => fs.copyToClipboard(ids, action)}
+              onPaste={fs.pasteFromClipboard}
+              onNavigateNewSet={navigateToNewSet}
+            />
+          } />
+          <Route path="/edit/:setId" element={<EditorPage fs={fs} />} />
+          <Route path="/create" element={<EditorPage fs={fs} />} />
+          <Route path="/study/:setId" element={<StudyPage fs={fs} />} />
+        </Routes>
       </main>
     </div>
   )

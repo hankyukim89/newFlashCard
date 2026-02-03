@@ -12,7 +12,9 @@ const Editor = ({
     addImage,
     removeCard,
     languages,
-    setLanguages
+    setLanguages,
+    massCreateSettings,
+    setMassCreateSettings
 }) => {
     const textareaRef = useRef(null);
 
@@ -104,6 +106,36 @@ const Editor = ({
                                 <option value="ko-KR">Korean</option>
                                 <option value="zh-CN">Chinese (Simplified)</option>
                             </select>
+                            <div className="setting-group">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <input
+                                        type="checkbox"
+                                        id="massCreate"
+                                        checked={massCreateSettings?.enabled || false}
+                                        onChange={(e) => setMassCreateSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                                    />
+                                    <label htmlFor="massCreate" style={{ marginBottom: 0, cursor: 'pointer', color: 'var(--color-primary)', fontWeight: '600' }}>
+                                        Mass Create Mode
+                                    </label>
+                                </div>
+
+                                {massCreateSettings?.enabled && (
+                                    <div style={{ marginTop: '0.5rem' }}>
+                                        <label style={{ fontSize: '0.8rem' }}>Max Cards per Set</label>
+                                        <input
+                                            type="number"
+                                            className="separator-input"
+                                            style={{ width: '80px', marginTop: '0.2rem' }}
+                                            value={massCreateSettings.maxCards}
+                                            onChange={(e) => setMassCreateSettings(prev => ({ ...prev, maxCards: parseInt(e.target.value) || 10 }))}
+                                            min="1"
+                                        />
+                                        <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '0.25rem', lineHeight: '1.2' }}>
+                                            Large lists will be split into multiple sets (e.g. Set 1, Set 2...)
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

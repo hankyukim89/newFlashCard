@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 export const useFlashcards = () => {
-    const [inputText, setInputText] = useState('Word 1, Definition 1\nWord 2, Definition 2');
+    const [inputText, setInputText] = useState('');
     const [cards, setCards] = useState([]);
     const [separators, setSeparators] = useState({
         card: '\n',

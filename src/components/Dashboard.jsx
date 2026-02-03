@@ -41,14 +41,7 @@ const Dashboard = ({
 
     const path = getPath(currentFolderId);
 
-    const handleSelect = (item, isMulti) => {
-        setSelection(prev => {
-            const next = new Set(isMulti ? prev : []);
-            if (next.has(item.id)) next.delete(item.id);
-            else next.add(item.id);
-            return next;
-        });
-    };
+
 
     const handleContextMenu = (e, item) => {
         e.preventDefault();
@@ -102,6 +95,8 @@ const Dashboard = ({
         setDraggedItem(null);
     };
 
+    const lastSelectedIndexRef = useRef(null);
+
     // Keyboard Delete
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -121,21 +116,66 @@ const Dashboard = ({
         setRenamingId(null);
     };
 
+    const handleSelect = (item, isMulti, index) => {
+        setSelection(prev => {
+            let next = new Set(isMulti ? prev : []);
+
+            // Shift + Click Range Selection
+            if (window.event?.shiftKey && lastSelectedIndexRef.current !== null) {
+                const start = Math.min(lastSelectedIndexRef.current, index);
+                const end = Math.max(lastSelectedIndexRef.current, index);
+
+                // Add all items in range
+                for (let i = start; i <= end; i++) {
+                    next.add(children[i].id);
+                }
+            } else {
+                // Normal toggle or Command/Ctrl click
+                if (next.has(item.id)) {
+                    // Only deselect if multi logic allows (optional behavior, normally Ctrl+Click toggles)
+                    // If standard click, we cleared previous so we add this one.
+                    // If isMulti (Ctrl), we toggle.
+                    if (isMulti) next.delete(item.id);
+                    else next.add(item.id); // Should typically be only this item if not multi
+                } else {
+                    next.add(item.id);
+                }
+                lastSelectedIndexRef.current = index;
+            }
+            return next;
+        });
+    };
+
+    // Actions
+    // Helper for unique names
+    const getUniqueName = (baseName) => {
+        const siblings = children.map(c => c.name);
+        let newName = baseName;
+        let counter = 2;
+        while (siblings.includes(newName)) {
+            newName = `${baseName} ${counter}`;
+            counter++;
+        }
+        return newName;
+    };
+
     // Actions
     const handleNewFolder = () => {
-        const id = createItem('folder', 'New Folder', currentFolderId);
+        const uniqueName = getUniqueName('New Folder');
+        const id = createItem('folder', uniqueName, currentFolderId);
         setRenamingId(id);
     };
 
     const handleNewSet = () => {
-        const id = createItem('set', 'New Flashcard Set', currentFolderId);
+        const uniqueName = getUniqueName('New Flashcard Set');
+        const id = createItem('set', uniqueName, currentFolderId);
         onNavigateNewSet(id);
     };
 
 
     // Selection Box Handlers
     const handleMouseDown = (e) => {
-        if (e.target === containerRef.current || e.target.classList.contains('file-grid')) {
+        if (e.target === containerRef.current || e.target.classList.contains('file-content-area') || e.target.classList.contains('dashboard-container')) {
             // Start selection box
             setIsSelecting(true);
             setSelectionBox({
@@ -146,6 +186,7 @@ const Dashboard = ({
             });
             if (!e.shiftKey && !e.metaKey && !e.ctrlKey) {
                 setSelection(new Set());
+                lastSelectedIndexRef.current = null;
             }
         }
     };
@@ -161,44 +202,37 @@ const Dashboard = ({
     };
 
     const handleMouseUp = (e) => {
-        if (isSelecting) {
-            // Calculate intersection with items
-            // This is a naive implementation. For robust intersection, we need item refs.
-            // But since we are short on time/complexity, we can simply define a box and check intersection if we had item positions.
-            // Since we don't have item positions easily without refs for each, 
-            // I'll stick to a visual box for now and maybe a simpler logic later if requested.
-            // Or: just assume user wants drag select functionality and implement it properly.
-            // RECT: Left, Top, Width, Height
-            // We need to know where items are.
-            // Let's defer actual selection logic or iterate through child positions?
-            // "I want to be able to drag select" -> They expect it to work.
-            // Since `children` are mapped, we can't easily get their DOM nodes without a ref map.
-            // Let's try to querySelectorAll('.file-item')?
+        if (isSelecting && selectionBox) {
+            // Calculate Box
+            const boxRect = {
+                left: Math.min(selectionBox.startX, selectionBox.currentX),
+                top: Math.min(selectionBox.startY, selectionBox.currentY),
+                right: Math.max(selectionBox.startX, selectionBox.currentX),
+                bottom: Math.max(selectionBox.startY, selectionBox.currentY)
+            };
 
-            if (selectionBox) {
-                const boxRect = {
-                    left: Math.min(selectionBox.startX, selectionBox.currentX),
-                    top: Math.min(selectionBox.startY, selectionBox.currentY),
-                    right: Math.max(selectionBox.startX, selectionBox.currentX),
-                    bottom: Math.max(selectionBox.startY, selectionBox.currentY)
-                };
+            const itemNodes = document.querySelectorAll('.file-item-wrapper');
+            const newSelection = new Set(e.shiftKey ? selection : []);
 
-                const itemNodes = document.querySelectorAll('.file-item-wrapper');
-                const newSelection = new Set(e.shiftKey ? selection : []);
+            itemNodes.forEach(node => {
+                const rect = node.getBoundingClientRect();
 
-                itemNodes.forEach(node => {
-                    const rect = node.getBoundingClientRect();
-                    // Check intersection
-                    if (rect.left < boxRect.right && rect.right > boxRect.left &&
-                        rect.top < boxRect.bottom && rect.bottom > boxRect.top) {
-                        const id = node.getAttribute('data-id');
-                        if (id) newSelection.add(id);
-                    }
-                });
+                // Check intersection between SelectionBox and Item
+                const intersects = !(
+                    rect.right < boxRect.left ||
+                    rect.left > boxRect.right ||
+                    rect.bottom < boxRect.top ||
+                    rect.top > boxRect.bottom
+                );
 
-                if (newSelection.size > 0 || !e.shiftKey) {
-                    setSelection(newSelection);
+                if (intersects) {
+                    const id = node.getAttribute('data-id');
+                    if (id) newSelection.add(id);
                 }
+            });
+
+            if (newSelection.size > 0 || !e.shiftKey) {
+                setSelection(newSelection);
             }
 
             setIsSelecting(false);
@@ -325,13 +359,13 @@ const Dashboard = ({
                 alignContent: 'flex-start',
                 flex: 1
             }}>
-                {children.map(item => (
+                {children.map((item, index) => (
                     <div className="file-item-wrapper" data-id={item.id} key={item.id} style={{ width: viewMode === 'list' ? '100%' : 'auto' }}>
                         <FileItem
                             item={item}
                             viewMode={viewMode}
                             isSelected={selection.has(item.id)}
-                            onSelect={handleSelect}
+                            onSelect={(i, isMulti) => handleSelect(i, isMulti, index)}
                             onNavigate={(i) => {
                                 if (i.type === 'folder') setCurrentFolderId(i.id);
                                 else onNavigateFile(i);
